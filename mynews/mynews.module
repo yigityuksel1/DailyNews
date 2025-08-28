@@ -1,0 +1,83 @@
+<?php
+
+/**
+ * @file
+ * Primary module hooks for mynews module.
+ */
+
+use Drupal\node\Entity\Node;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
+
+/**
+ * Implements hook_cron().
+ */
+function mynews_cron() {
+   \Drupal::logger('mynews')->notice('Cron job started.'); // çalıştığından emin olmak için logger
+    // WSData servisini yükle
+  $wsdata_service = \Drupal::service('wsdata');
+  $entity_type_manager = \Drupal::service('entity_type.manager');
+
+  try {
+    // wscall entitysini etm üzerinden yükle
+    $wscall = $entity_type_manager->getStorage('wscall')->load('top_headlines');
+
+    if (!$wscall) {
+      \Drupal::logger('mynews')->error('WSCall "top_headlines" not found.');  // yüklenemediyse logger
+      return;
+    }
+
+    // wsdata çağrısını yap
+    $articles = $wsdata_service->call($wscall);
+
+  } catch (\Exception $e) {
+    \Drupal::logger('mynews')->error('WSData call failed: @msg', ['@msg' => $e->getMessage()]);
+    return;
+  }
+
+  if (empty($articles)) {
+    \Drupal::logger('mynews')->notice('No articles were fetched during cron run.'); // çağrıdan gelen data articles arr atılamadıysa
+    return;
+  }
+
+  $node_storage = $entity_type_manager->getStorage('node');
+
+  foreach ($articles as $a) {                   //
+    if (empty($a['title']) || empty($a['url'])) {
+      continue;
+    }
+
+    $ids = $node_storage->getQuery()
+      ->condition('type', 'news')
+      ->condition('field_url.uri', $a['url'])
+      ->range(0, 1)
+      ->accessCheck(FALSE) 
+      ->execute();
+
+    $node = $ids ? $node_storage->load(reset($ids)) : NULL;
+
+    $values = [
+      'type' => 'news',
+      'title' => $a['title'],
+      'status' => 1,
+      'field_description' => ['value' => $a['description'] ?? '', 'format' => 'basic_html'],
+      'field_content' => ['value' => $a['content'] ?? '', 'format' => 'basic_html'],
+      'field_url' => ['uri' => $a['url'], 'title' => $a['title']],
+      'field_image_url' => !empty($a['urlToImage']) ? ['uri' => $a['urlToImage'], 'title' => 'Image'] : [],
+      'field_source_name' => $a['source']['name'] ?? '',
+      'field_author' => $a['author'] ?? '',
+      'field_published_at' => !empty($a['publishedAt']) ? ['value' => substr($a['publishedAt'], 0, 19)] : NULL,
+    ];
+
+    if ($node) {
+      foreach ($values as $k => $v) {
+        if ($k === 'type' || $k === 'title') continue;
+        $node->set($k, $v);
+      }
+      $node->setTitle($values['title']);
+      $node->save();
+    } else {
+      Node::create($values)->save();
+    }
+  }
+  \Drupal::logger('mynews')->notice('Cron job finished.');
+}

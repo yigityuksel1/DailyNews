@@ -1,0 +1,8 @@
+name: 'My News'
+type: module
+description: 'Fetches news from NewsAPI.org via WSData and saves them into the News content type.'
+core_version_requirement: ^10
+package: Custom
+dependencies:
+  - wsdata
+  - better_exposed_filters

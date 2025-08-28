@@ -1,0 +1,6 @@
+mynews.import_form:
+  title: 'Import News'
+  description: 'Fetch news from NewsAPI and populate News content type.'
+  parent: system.admin_config_content
+  route_name: 'mynews.import_form'
+  weight: 100

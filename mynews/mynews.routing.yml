@@ -1,0 +1,7 @@
+mynews.import_form:
+  path: '/admin/content/news-import'
+  defaults:
+    _title: 'Import News from NewsAPI'
+    _form: '\Drupal\mynews\Form\NewsImportForm'
+  requirements:
+    _permission: 'administer site configuration'
